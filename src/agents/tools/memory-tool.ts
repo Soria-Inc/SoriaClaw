@@ -14,6 +14,7 @@ const MemorySearchSchema = Type.Object({
   query: Type.String(),
   maxResults: Type.Optional(Type.Number()),
   minScore: Type.Optional(Type.Number()),
+  scope: Type.Optional(Type.String()),
 });
 
 const MemoryGetSchema = Type.Object({
@@ -50,7 +51,7 @@ export function createMemorySearchTool(options: {
     label: "Memory Search",
     name: "memory_search",
     description:
-      "Mandatory recall step: semantically search MEMORY.md + memory/*.md (and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos; returns top snippets with path + lines. If response has disabled=true, memory retrieval is unavailable and should be surfaced to the user.",
+      "Mandatory recall step: semantically search MEMORY.md + memory/*.md (and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos; returns top snippets with path + lines. Optional scope parameter filters results by directory path prefix (e.g., 'knowledge/engineering' or 'knowledge/engineering,codebase'). If response has disabled=true, memory retrieval is unavailable and should be surfaced to the user.",
     parameters: MemorySearchSchema,
     execute: async (_toolCallId, params) => {
       const query = readStringParam(params, "query", { required: true });
@@ -74,8 +75,10 @@ export function createMemorySearchTool(options: {
           minScore,
           sessionKey: options.agentSessionKey,
         });
+        const scope = readStringParam(params, "scope");
+        const scopedResults = scope ? filterResultsByScope(rawResults, scope) : rawResults;
         const status = manager.status();
-        const decorated = decorateCitations(rawResults, includeCitations);
+        const decorated = decorateCitations(scopedResults, includeCitations);
         const resolved = resolveMemoryBackendConfig({ cfg, agentId });
         const results =
           status.backend === "qmd"
@@ -190,6 +193,20 @@ function clampResultsByInjectedChars(
     }
   }
   return clamped;
+}
+
+function filterResultsByScope(results: MemorySearchResult[], scope: string): MemorySearchResult[] {
+  const prefixes = scope
+    .split(",")
+    .map((s) => s.trim().replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean);
+  if (prefixes.length === 0) {
+    return results;
+  }
+  return results.filter((r) => {
+    const normalized = r.path.replace(/^\/+/, "");
+    return prefixes.some((prefix) => normalized.startsWith(prefix));
+  });
 }
 
 function buildMemorySearchUnavailableResult(error: string | undefined) {

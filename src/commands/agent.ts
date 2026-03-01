@@ -583,13 +583,9 @@ async function prepareAgentCommandExecution(
   }
 
   const laneRaw = typeof opts.lane === "string" ? opts.lane.trim() : "";
-  const isSubagentLane = laneRaw === String(AGENT_LANE_SUBAGENT);
+  const _isSubagentLane = laneRaw === String(AGENT_LANE_SUBAGENT);
   const timeoutSecondsRaw =
-    opts.timeout !== undefined
-      ? Number.parseInt(String(opts.timeout), 10)
-      : isSubagentLane
-        ? 0
-        : undefined;
+    opts.timeout !== undefined ? Number.parseInt(String(opts.timeout), 10) : undefined;
   if (
     timeoutSecondsRaw !== undefined &&
     (Number.isNaN(timeoutSecondsRaw) || timeoutSecondsRaw < 0)

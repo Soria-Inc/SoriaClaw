@@ -34,6 +34,7 @@ import { resolveSlackReplyToMode, type ResolvedSlackAccount } from "../../accoun
 import { reactSlackMessage } from "../../actions.js";
 import { sendMessageSlack } from "../../send.js";
 import { hasSlackThreadParticipation } from "../../sent-thread-cache.js";
+import { getSlackThreadBinding } from "../../thread-bindings.js";
 import { resolveSlackThreadContext } from "../../threading.js";
 import type { SlackMessageEvent } from "../../types.js";
 import {
@@ -262,8 +263,9 @@ function resolveSlackRoutingContext(params: {
   isRoomish: boolean;
 }): SlackRoutingContext {
   const { ctx, account, message, isDirectMessage, isGroupDm, isRoom, isRoomish } = params;
-  const route = resolveAgentRoute({
+  let route = resolveAgentRoute({
     cfg: ctx.cfg,
+
     channel: "slack",
     accountId: account.accountId,
     teamId: ctx.teamId || undefined,
@@ -297,7 +299,17 @@ function resolveSlackRoutingContext(params: {
     threadId: canonicalThreadId,
     parentSessionKey: canonicalThreadId && ctx.threadInheritParent ? route.sessionKey : undefined,
   });
-  const sessionKey = threadKeys.sessionKey;
+  let sessionKey = threadKeys.sessionKey;
+
+  // Thread binding override: route follow-ups directly to the bound specialist
+  if (isThreadReply && threadTs) {
+    const binding = getSlackThreadBinding(account.accountId, threadTs);
+    if (binding) {
+      route = { ...route, agentId: binding.agentId, sessionKey: binding.sessionKey };
+      sessionKey = binding.sessionKey;
+    }
+  }
+
   const historyKey =
     isThreadReply && ctx.threadHistoryScope === "thread" ? sessionKey : message.channel;
 

@@ -2,6 +2,7 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk/slack";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk/slack";
 import { slackPlugin } from "./src/channel.js";
 import { setSlackRuntime } from "./src/runtime.js";
+import { registerSlackSubagentHooks } from "./src/subagent-hooks.js";
 
 const plugin = {
   id: "slack",
@@ -11,6 +12,7 @@ const plugin = {
   register(api: OpenClawPluginApi) {
     setSlackRuntime(api.runtime);
     api.registerChannel({ plugin: slackPlugin });
+    registerSlackSubagentHooks(api);
   },
 };
 

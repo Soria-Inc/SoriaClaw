@@ -110,7 +110,11 @@ export function createSessionsSpawnTool(
         typeof timeoutSecondsCandidate === "number" && Number.isFinite(timeoutSecondsCandidate)
           ? Math.max(0, Math.floor(timeoutSecondsCandidate))
           : undefined;
-      const thread = params.thread === true;
+      const isSlackThread =
+        opts?.agentChannel === "slack" &&
+        opts?.agentThreadId != null &&
+        String(opts.agentThreadId).trim() !== "";
+      const thread = params.thread === true || isSlackThread;
       const attachments = Array.isArray(params.attachments)
         ? (params.attachments as Array<{
             name: string;

@@ -752,7 +752,7 @@ export async function runEmbeddedAttempt(
   ensureGlobalUndiciStreamTimeouts();
 
   log.debug(
-    `embedded run start: runId=${params.runId} sessionId=${params.sessionId} provider=${params.provider} model=${params.modelId} thinking=${params.thinkLevel} messageChannel=${params.messageChannel ?? params.messageProvider ?? "unknown"}`,
+    `embedded run start: runId=${params.runId} sessionId=${params.sessionId} provider=${params.provider} model=${params.modelId} thinking=${params.thinkLevel} messageChannel=${params.messageChannel ?? params.messageProvider ?? "unknown"} agentId=${params.agentId ?? ""} threadTs=${params.messageThreadId ?? params.currentThreadTs ?? ""} senderId=${params.senderId ?? ""} spawnedBy=${params.spawnedBy ?? ""}`,
   );
 
   await fs.mkdir(resolvedWorkspace, { recursive: true });
@@ -1550,7 +1550,7 @@ export async function runEmbeddedAttempt(
 
       const queueHandle: EmbeddedPiQueueHandle = {
         queueMessage: async (text: string) => {
-          await activeSession.steer(text);
+          void activeSession.steer(text);
         },
         isStreaming: () => activeSession.isStreaming,
         isCompacting: () => subscription.isCompacting(),
@@ -1592,6 +1592,20 @@ export async function runEmbeddedAttempt(
         },
         Math.max(1, params.timeoutMs),
       );
+
+      // Soft timeout: steer the agent to wrap up at 80% of timeout
+      const softTimeoutMs = Math.floor(params.timeoutMs * 0.8);
+      const remainingAfterSoft = params.timeoutMs - softTimeoutMs;
+      let softTimer: NodeJS.Timeout | undefined;
+      if (remainingAfterSoft >= 30_000) {
+        softTimer = setTimeout(() => {
+          const minutesLeft = Math.max(1, Math.round(remainingAfterSoft / 60_000));
+          void activeSession.steer(
+            `[SYSTEM] ~${minutesLeft} minute(s) until timeout. ` +
+              `Wrap up: summarize progress, deliver partial results to the user, finish cleanly.`,
+          );
+        }, softTimeoutMs);
+      }
 
       let messagesSnapshot: AgentMessage[] = [];
       let sessionIdUsed = activeSession.sessionId;
@@ -1968,6 +1982,9 @@ export async function runEmbeddedAttempt(
         }
       } finally {
         clearTimeout(abortTimer);
+        if (softTimer) {
+          clearTimeout(softTimer);
+        }
         if (abortWarnTimer) {
           clearTimeout(abortWarnTimer);
         }
